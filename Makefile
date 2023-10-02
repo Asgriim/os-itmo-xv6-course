@@ -28,11 +28,11 @@ OBJS = \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/plic.o \
-  $K/virtio_disk.o
+  $K/virtio_disk.o \
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
-#TOOLPREFIX = 
+TOOLPREFIX = /home/asgrim/labs/os/sc-dt/riscv-gcc/bin/riscv64-unknown-elf-
 
 # Try to infer the correct TOOLPREFIX if not set
 ifndef TOOLPREFIX
@@ -56,7 +56,8 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+#CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+CFLAGS = -Wall -O -fno-omit-frame-pointer -ggdb -gdwarf-2
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
@@ -132,6 +133,24 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	$U/_test\
+	$U/_pingpong\
+	$U/_dumptests\
+    $U/_dump2tests\
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
+$U/_dumptests: $U/dumptests.c $U/dumptests.S $(ULIB)
+	$(CC) $(CFLAGS) -c -o $U/dumptests.S.o $U/dumptests.S
+	$(CC) $(CFLAGS) -c -o $U/dumptests.c.o $U/dumptests.c
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/_dumptests $U/dumptests.c.o $U/dumptests.S.o $(ULIB)
+$U/_dump2tests: $U/dump2tests.c $U/dump2tests.S $(ULIB)
+	$(CC) $(CFLAGS) -c -o $U/dump2tests.S.o $U/dump2tests.S
+	$(CC) $(CFLAGS) -c -o $U/dump2tests.c.o $U/dump2tests.c
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/_dump2tests $U/dump2tests.c.o $U/dump2tests.S.o $(ULIB)
+
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

@@ -681,3 +681,61 @@ procdump(void)
     printf("\n");
   }
 }
+
+int
+dump(void) {
+    struct proc *p = myproc();
+    uint64 *reg =  &(p->trapframe->s2);
+    for (uint64 i = 0; i < 10; ++i) {
+        uint32 t = *(reg + i) & 0x00000000FFFFFFFF;
+        printf("s%d = %d\n",2 + i,t);
+    }
+    return 0;
+}
+
+int
+dump2(int pid, int register_num, uint64 *return_value) {
+
+    if (register_num < 2 || register_num > 11) {
+        return -3;
+    }
+
+    struct proc *my_p = myproc();
+    struct proc *p = 0;
+    int found = 0;
+    acquire(&wait_lock);
+
+    for (int i = 0; i < NPROC; ++i) {
+        p = &proc[i];
+        acquire(&p->lock);
+        found = (p->pid == pid);
+        if (found) {
+            break;
+        } else {
+            release(&p->lock);
+        }
+    }
+
+    if (!found) {
+        release(&wait_lock);
+        return -2;
+    }
+    if (pid != my_p->pid && p->parent != my_p) {
+        release(&p->lock);
+        release(&wait_lock);
+        return -1;
+    }
+
+    uint64 reg = *(&p->trapframe->s2 + register_num - 2);
+    release(&p->lock);
+
+    if (copyout(my_p->pagetable, (uint64)return_value, (char*)&reg, 8) == 0) {
+        release(&wait_lock);
+        return 0;
+    } else {
+        release(&wait_lock);
+        return -4;
+    };
+
+
+}
