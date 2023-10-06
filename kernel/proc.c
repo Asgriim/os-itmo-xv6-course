@@ -735,7 +735,7 @@ dump2(int pid, int register_num, uint64 *return_value) {
     } else {
         release(&wait_lock);
         return -4;
-    };
+    }
 
 
 }

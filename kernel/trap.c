@@ -6,6 +6,10 @@
 #include "proc.h"
 #include "defs.h"
 
+#define I_PAGE_FAULT 12
+#define LOAD_PAGE_FAULT 13
+#define AMO_PAGE_FAULT 15
+
 struct spinlock tickslock;
 uint ticks;
 
@@ -37,7 +41,7 @@ void
 usertrap(void)
 {
   int which_dev = 0;
-
+//    printf("trap\n");
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
 
@@ -49,8 +53,10 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  
-  if(r_scause() == 8){
+  int scause = r_scause();
+  uint64 va = r_stval();
+
+  if(scause == 8){
     // system call
 
     if(killed(p))
@@ -68,19 +74,52 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    setkilled(p);
+      if (scause == AMO_PAGE_FAULT || scause == LOAD_PAGE_FAULT) {
+//          printf("page fault\n");
+//          if (valid_va(p,va)) {
+//              goto bad_end;
+//          }
+
+          switch (valid_va(p,va)) {
+              case 0:
+                  break; // ok
+              case -1:
+                  printf("error: page fault\n");
+                  goto bad_end;
+              case -2:
+                  printf("error: stack overflow or restricted access\n");
+                  goto bad_end;
+
+          }
+
+          void *ph_addr = kalloc();
+
+          if (ph_addr == 0) {
+              goto bad_end;
+          }
+          memset(ph_addr, 0, PGSIZE);
+          int perm = PTE_W | PTE_R | PTE_X | PTE_U;
+
+          if (mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, ph_addr, perm) != 0){
+              kfree(ph_addr);
+              goto bad_end;
+          }
+          goto ok;
+      }
+      bad_end:
+          printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+          printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+          setkilled(p);
   }
 
   if(killed(p))
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
-
-  usertrapret();
+  ok:
+      if(which_dev == 2)
+        yield();
+      usertrapret();
 }
 
 //
