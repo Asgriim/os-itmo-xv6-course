@@ -63,6 +63,8 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+
+//buddy.c
 void*           bd_malloc(uint64 nbytes);
 void            bd_free(void *p);
 void            bd_init(void *base, void *end);

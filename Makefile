@@ -30,7 +30,7 @@ OBJS = \
   $K/plic.o \
   $K/virtio_disk.o \
   $K/list.o \
-
+  $K/buddy.o \
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
 TOOLPREFIX = /home/asgrim/labs/os/sc-dt/riscv-gcc/bin/riscv64-unknown-elf-
