@@ -69,6 +69,7 @@ void*           bd_malloc(uint64 nbytes);
 void            bd_free(void *p);
 void            bd_init(void *base, void *end);
 void            bd_in();
+void            bd_print();
 
 // list.c
 struct list {
