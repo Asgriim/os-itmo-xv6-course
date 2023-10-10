@@ -39,6 +39,15 @@ static Sz_info *bd_sizes;
 static void *bd_base;  // start address of memory managed by the buddy allocator
 static struct spinlock lock;
 
+
+int bit_a_isset(char *array, int index);
+
+void set_a_bit(char *array, int index);
+
+void clear_a_bit(char *array, int index);
+// return previous state of alloc bit
+int invert_bit_a(char *array, int index);
+
 // Return 1 if bit at position index in array is set to 1
 int bit_isset(char *array, int index) {
     char b = array[index / 8];
@@ -72,9 +81,10 @@ void bd_print_vector(char *vector, int len) {
         lb = b;
         last = bit_isset(vector, b);
     }
-    if (lb == 0 || last == 1) {
-        printf(" [%d, %d)", lb, len);
-    }
+    // без этого понятнее
+//    if (lb == 0 || last == 1) {
+//        printf(" [%d, %d)", lb, len);
+//    }
     printf("\n");
 }
 
@@ -134,13 +144,17 @@ void *bd_malloc(uint64 nbytes) {
 
     // Found a block; pop it and potentially split it.
     char *p = lst_pop(&bd_sizes[k].free);
-    bit_set(bd_sizes[k].alloc, blk_index(k, p));
+    //todo тесты
+    invert_bit_a(bd_sizes[k].alloc, blk_index(k, p));
+//    bit_set(bd_sizes[k].alloc, blk_index(k, p));
     for (; k > fk; k--) {
         // split a block at size k and mark one half allocated at size k-1
         // and put the buddy on the free list at size k-1
         char *q = p + BLK_SIZE(k - 1);  // p's buddy
         bit_set(bd_sizes[k].split, blk_index(k, p));
-        bit_set(bd_sizes[k - 1].alloc, blk_index(k - 1, p));
+        //todo тесты 2
+        invert_bit_a(bd_sizes[k - 1].alloc, blk_index(k - 1, p));
+//        bit_set(bd_sizes[k - 1].alloc, blk_index(k - 1, p));
         lst_push(&bd_sizes[k - 1].free, q);
     }
     release(&lock);
@@ -168,10 +182,15 @@ void bd_free(void *p) {
     for (k = size(p); k < MAXSIZE; k++) {
         int bi = blk_index(k, p);
         int buddy = (bi % 2 == 0) ? bi + 1 : bi - 1;
-        bit_clear(bd_sizes[k].alloc, bi);           // free p at size k
-        if (bit_isset(bd_sizes[k].alloc, buddy)) {  // is buddy allocated?
-            break;                                    // break out of loop
+        // todo тесты 3
+        int prev_a = invert_bit_a(bd_sizes[k].alloc, bi);
+        if (prev_a == 0) {
+            break;
         }
+//        bit_clear(bd_sizes[k].alloc, bi);           // free p at size k
+//        if (bit_isset(bd_sizes[k].alloc, buddy)) {  // is buddy allocated?
+//            break;                                    // break out of loop
+//        }
         // budy is free; merge with buddy
         q = addr(k, buddy);
         lst_remove(q);  // remove buddy from free list
@@ -217,20 +236,22 @@ void bd_mark(void *start, void *stop) {
                 // if a block is allocated at size k, mark it as split too.
                 bit_set(bd_sizes[k].split, bi);
             }
-            bit_set(bd_sizes[k].alloc, bi);
+            // todo tests aaaaaa
+            invert_bit_a(bd_sizes[k].alloc,bi);
+//            bit_set(bd_sizes[k].alloc, bi);
         }
     }
 }
 
 // If a block is marked as allocated and the buddy is free, put the
 // buddy on the free list at size k.
-int bd_initfree_pair(int k, int bi) {
+int bd_initfree_pair(int k, int bi) {;
     int buddy = (bi % 2 == 0) ? bi + 1 : bi - 1;
     int free = 0;
-    if (bit_isset(bd_sizes[k].alloc, bi) != bit_isset(bd_sizes[k].alloc, buddy)) {
+    if (bit_a_isset(bd_sizes[k].alloc, bi) ) {
         // one of the pair is free
         free = BLK_SIZE(k);
-        if (bit_isset(bd_sizes[k].alloc, bi))
+        if (bit_isset(bd_sizes[k].split, bi))
             lst_push(&bd_sizes[k].free, addr(k, buddy));  // put buddy on free list
         else
             lst_push(&bd_sizes[k].free, addr(k, bi));  // put bi on free list
@@ -328,8 +349,38 @@ void bd_init(void *base, void *end) {
     int free = bd_initfree(p, bd_end);
 
     // check if the amount that is free is what we expect
-    if (free != BLK_SIZE(MAXSIZE) - meta - unavailable) {
+    if (free != BLK_SIZE(MAXSIZE) - meta - unavailable ) {
         printf("free %d %d\n", free, BLK_SIZE(MAXSIZE) - meta - unavailable);
         panic("bd_init: free mem");
     }
 }
+
+
+int bit_a_isset(char *array, int index) {
+    index /= 2;
+    return bit_isset(array, index);
+}
+
+void set_a_bit(char *array, int index) {
+    index /= 2;
+    bit_set(array,index);
+}
+
+void clear_a_bit(char *array, int index) {
+    index /= 2;
+    bit_clear(array,index);
+}
+
+// return previous state of alloc bit
+int invert_bit_a(char *array, int index) {
+    int is_set = bit_a_isset(array, index);
+
+    if (is_set) {
+        clear_a_bit(array,index);
+    } else {
+        set_a_bit(array,index);
+    }
+
+    return is_set;
+}
+
