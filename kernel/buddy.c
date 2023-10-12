@@ -320,7 +320,7 @@ void bd_init(void *base, void *end) {
     // initialize free list and allocate the alloc array for each size k
     for (int k = 0; k < nsizes; k++) {
         lst_init(&bd_sizes[k].free);
-        sz = sizeof(char) * ROUNDUP(NBLK(k), 8) / 8;
+        sz = sizeof(char) * ROUNDUP(NBLK(k) /2 , 8) / 8;
         bd_sizes[k].alloc = p;
         memset(bd_sizes[k].alloc, 0, sz);
         p += sz;
@@ -329,7 +329,7 @@ void bd_init(void *base, void *end) {
     // allocate the split array for each size k, except for k = 0, since
     // we will not split blocks of size k = 0, the smallest size.
     for (int k = 1; k < nsizes; k++) {
-        sz = sizeof(char) * (ROUNDUP(NBLK(k), 8)) / 8;
+        sz = sizeof(char) * (ROUNDUP(NBLK(k) , 8)) / 8;
         bd_sizes[k].split = p;
         memset(bd_sizes[k].split, 0, sz);
         p += sz;

@@ -309,7 +309,7 @@ sys_open(void)
   struct file *f;
   struct inode *ip;
   int n;
-
+    printf("open\n");
   argint(1, &omode);
   if((n = argstr(0, path, MAXPATH)) < 0)
     return -1;
