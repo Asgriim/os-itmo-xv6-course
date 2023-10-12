@@ -497,6 +497,7 @@ scheduler(void)
                 c->proc = p;
 
                 uint64 *con_reg = &p->context.ra;
+                printf("schedule runnung pid - %d\n", p->pid);
                 for (int i = 0; i < 13; ++i) {
                     printf("reg_%d = %p\n",i,*con_reg);
                     con_reg++;
@@ -541,7 +542,7 @@ scheduler(void)
 void
 sched(void)
 {
-    printf("sched\n");
+//    printf("sched\n");
     int intena;
     struct proc *p = myproc();
 
@@ -631,7 +632,7 @@ wakeup(void *chan)
     struct proc *p;
     struct proc_list *node = root_node;
     while (node != 0) {
-        printf("wake up\n");
+//        printf("wake up\n");
         p = node->p;
         if(p != myproc()){
             acquire(&p->lock);
