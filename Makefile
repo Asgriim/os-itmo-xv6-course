@@ -139,6 +139,7 @@ UPROGS=\
 	$U/_pingpong\
 	$U/_dumptests\
     $U/_dump2tests\
+    $U/_alloctest\
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

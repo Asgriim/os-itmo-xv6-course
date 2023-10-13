@@ -40,6 +40,5 @@ main()
     trapinithart();   // install kernel trap vector
     plicinithart();   // ask PLIC for device interrupts
   }
-    printf("schleduler \n");
   scheduler();
 }

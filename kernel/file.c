@@ -30,12 +30,13 @@ struct file*
 filealloc(void)
 {
   struct file *f;
-  acquire(&ftable.lock);
 //  bd_print();
   f = bd_malloc(sizeof(struct file));
-  f->ref = 1;
-  release(&ftable.lock);
-  return f;
+  if (f != 0) {
+      f->ref = 1;
+      return f;
+    }
+  return 0;
 }
 
 // Increment ref count for file f.

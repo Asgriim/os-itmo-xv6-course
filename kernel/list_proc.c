@@ -3,7 +3,11 @@
 //
 
 #include "list_proc.h"
+
+
+
 int list_empty(struct proc_list *root_node) {
+
     return root_node == 0;
 }
 
@@ -18,6 +22,7 @@ int push_plist(struct proc_list *root_node, struct proc_list *node){
 }
 
 int delete_plist(struct proc_list *root_node, struct proc_list *node) {
+
     if (list_empty(root_node)) {
         return -1;
     }
@@ -33,19 +38,19 @@ int delete_plist(struct proc_list *root_node, struct proc_list *node) {
     return 0;
 }
 
-int delete_plist_e(struct proc_list *root_node, struct proc *p) {
+struct proc_list * delete_plist_e(struct proc_list *root_node, struct proc *p) {
     if (list_empty(root_node)) {
-        return -1;
+        return 0;
     }
-
     struct proc_list *end = root_node;
+    struct proc_list *to_delete;
     while (end->next != 0) {
         if (end->next->p == p) {
+            to_delete = end->next;
             end->next = end->next->next;
-            return 0;
+            return to_delete;
         }
         end = end->next;
     }
-
-    return -1;
+    return 0;
 }
