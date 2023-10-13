@@ -150,7 +150,7 @@ allocproc(void)
     initlock(&p->lock, "proc");
     acquire(&p->lock);
     p->pid = allocpid();
-    char *pa = kalloc();
+    char *pa = bd_malloc(PGSIZE);
     if(pa == 0)
         panic("kalloc");
     uint64 va = KSTACK(p->pid);
@@ -203,12 +203,12 @@ freeproc(struct proc *p)
     p->xstate = 0;
     p->state = UNUSED;
     acquire(&list_lock);
-    struct proc_list *to_del = delete_plist_e(root_node,p);
-    if (to_del != 0) {
+//    struct proc_list *to_del = delete_plist_e(root_node,p);
+//    if (to_del != 0) {
 //        bd_free(p->kstack);
 //        bd_free(p);
 //        bd_free(to_del);
-    }
+//    }
 
 
     release(&list_lock);

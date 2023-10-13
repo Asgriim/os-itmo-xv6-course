@@ -76,7 +76,7 @@ fileclose(struct file *f)
     iput(ff.ip);
     end_op();
   }
-  bd_free(f);
+//  bd_free(f);
 
 }
 
