@@ -32,6 +32,7 @@ filealloc(void)
   struct file *f;
 //  bd_print();
   f = bd_malloc(sizeof(struct file));
+    memset(f,0, sizeof(struct file));
   if (f != 0) {
       f->ref = 1;
       return f;
@@ -76,7 +77,7 @@ fileclose(struct file *f)
     iput(ff.ip);
     end_op();
   }
-//  bd_free(f);
+  bd_free(f);
 
 }
 

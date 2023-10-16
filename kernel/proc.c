@@ -17,8 +17,11 @@ struct proc *initproc;
 int nextpid = 1;
 struct spinlock pid_lock;
 
+//struct spinlock list_lock;
+
 struct spinlock alloc_lock;
-struct spinlock list_lock;
+
+int proc_num = 0;
 
 extern void forkret(void);
 static void freeproc(struct proc *p);
@@ -60,7 +63,6 @@ procinit(void)
     initlock(&pid_lock, "nextpid");
     initlock(&wait_lock, "wait_lock");
     initlock(&alloc_lock, "alloc_lock");
-    initlock(&list_lock, "list_lock");
 
 //    for(p = proc; p < &proc[NPROC]; p++) {
 //        initlock(&p->lock, "proc");
@@ -121,31 +123,33 @@ static struct proc*
 allocproc(void)
 {
     struct proc *p;
-//    printf("alloc proc\n");
-//    for(p = proc; p < &proc[NPROC]; p++) {
-//        acquire(&p->lock);
-//        if(p->state == UNUSED) {
-//            goto found;
-//        } else {
-//            release(&p->lock);
-//        }
-//    }
-    acquire(&alloc_lock);
+    struct proc_list *node1 = root_node;
+    while (root_node != 0 && node1 != 0) {
+        p = node1->p;
+        acquire(&p->lock);
+        if(p->state == UNUSED) {
+            goto found;
+        } else {
+            release(&p->lock);
+        }
+        node1 = node1->next;
+    }
+    // todo сделать красиво
     p = bd_malloc(sizeof(struct proc));
+    memset(p, 0, sizeof(struct proc));
     struct proc_list *node = bd_malloc(sizeof(struct  proc_list));
+    memset(node, 0, sizeof(struct proc_list));
     node->p = p;
     if (nextpid == 1) {
         root_node = node;
         root_node->next = 0;
     } else {
         node->next = 0;
-        acquire(&list_lock);
         push_plist(root_node,node);
-        release(&list_lock);
     }
 //    return 0;
 
-    found:
+
 //    p->kstack = kalloc();
     initlock(&p->lock, "proc");
     acquire(&p->lock);
@@ -153,15 +157,25 @@ allocproc(void)
     char *pa = bd_malloc(PGSIZE);
     if(pa == 0)
         panic("kalloc");
-    uint64 va = KSTACK(p->pid);
+    acquire(&alloc_lock);
+    uint64 va = KSTACK(proc_num);
+    proc_num++;
+//    printf("proc num %d\n",proc_num);
+    release(&alloc_lock);
+//    uint64 va = KSTACK(p->pid);
     kvmmap(kernelPage, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
     p->kstack = pa;
-    p->state = USED;
+    goto gen;
 
+    found:
+    p->state = USED;
+    p->pid = allocpid();
+    gen:
     // Allocate a trapframe page.
     if((p->trapframe = (struct trapframe *)kalloc()) == 0){
         freeproc(p);
         release(&p->lock);
+//        release(&alloc_lock);
         return 0;
     }
 
@@ -170,6 +184,7 @@ allocproc(void)
     if(p->pagetable == 0){
         freeproc(p);
         release(&p->lock);
+//        release(&alloc_lock);
         return 0;
     }
 
@@ -178,7 +193,7 @@ allocproc(void)
     memset(&p->context, 0, sizeof(p->context));
     p->context.ra = (uint64)forkret;
     p->context.sp = p->kstack + PGSIZE;
-    release(&alloc_lock);
+//    release(&alloc_lock);
     return p;
 }
 
@@ -202,8 +217,7 @@ freeproc(struct proc *p)
     p->killed = 0;
     p->xstate = 0;
     p->state = UNUSED;
-    acquire(&list_lock);
-//    struct proc_list *to_del = delete_plist_e(root_node,p);
+//    delete_plist_e(root_node,p);
 //    if (to_del != 0) {
 //        bd_free(p->kstack);
 //        bd_free(p);
@@ -211,7 +225,6 @@ freeproc(struct proc *p)
 //    }
 
 
-    release(&list_lock);
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -375,7 +388,6 @@ reparent(struct proc *p)
 {
     struct proc *pp;
     struct proc_list *node = root_node;
-    acquire(&list_lock);
     while (node != 0) {
         pp = node->p;
         if(pp->parent == p){
@@ -384,7 +396,6 @@ reparent(struct proc *p)
         }
         node = node->next;
     }
-    release(&list_lock);
 //    for(pp = proc; pp < &proc[NPROC]; pp++){
 //        if(pp->parent == p){
 //            pp->parent = initproc;
@@ -448,7 +459,6 @@ wait(uint64 addr)
     struct proc *p = myproc();
 
     acquire(&wait_lock);
-
     for(;;){
         // Scan through table looking for exited children.
         havekids = 0;
@@ -673,13 +683,13 @@ wakeup(void *chan)
     struct proc *p;
     struct proc_list *node = root_node;
     while (node != 0) {
-//        printf("wake up\n");
         p = node->p;
         if(p != myproc()){
             acquire(&p->lock);
             if(p->state == SLEEPING && p->chan == chan) {
                 p->state = RUNNABLE;
             }
+
             release(&p->lock);
         }
         node = node->next;
@@ -705,6 +715,7 @@ kill(int pid)
     struct proc *p;
     struct proc_list *node = root_node;
     while (node != 0) {
+
         p = node->p;
         acquire(&p->lock);
         if(p->pid == pid){
