@@ -43,15 +43,6 @@ void
 proc_mapstacks(pagetable_t kpgtbl)
 {
     kernelPage = kpgtbl;
-//    struct proc *p;
-//
-//    for(p = proc; p < &proc[NPROC]; p++) {
-//        char *pa = kalloc();
-//        if(pa == 0)
-//            panic("kalloc");
-//        uint64 va = KSTACK((int) (p - proc));
-//        kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
-//    }
 }
 
 // initialize the proc table.
@@ -64,11 +55,6 @@ procinit(void)
     initlock(&wait_lock, "wait_lock");
     initlock(&alloc_lock, "alloc_lock");
 
-//    for(p = proc; p < &proc[NPROC]; p++) {
-//        initlock(&p->lock, "proc");
-//        p->state = UNUSED;
-//        p->kstack = KSTACK((int) (p - proc));
-//    }
 }
 
 // Must be called with interrupts disabled,
@@ -115,6 +101,32 @@ allocpid()
     return pid;
 }
 
+void create_proc_node(struct proc *p) {
+    struct proc_list *node = bd_malloc(sizeof(struct  proc_list));
+    memset(node, 0, sizeof(struct proc_list));
+    node->p = p;
+    if (nextpid == 1) {
+        root_node = node;
+        root_node->next = 0;
+    } else {
+        node->next = 0;
+        push_plist(root_node,node);
+    }
+
+    initlock(&p->lock, "proc");
+    p->pid = allocpid();
+    char *pa = bd_malloc(PGSIZE);
+    if(pa == 0)
+        panic("kalloc");
+    acquire(&alloc_lock);
+    uint64 va = KSTACK(proc_num);
+    proc_num++;
+    release(&alloc_lock);
+    kvmmap(kernelPage, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+    p->kstack = pa;
+
+}
+
 // Look in the process table for an UNUSED proc.
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
@@ -134,48 +146,22 @@ allocproc(void)
         }
         node1 = node1->next;
     }
-    // todo сделать красиво
+
     p = bd_malloc(sizeof(struct proc));
     memset(p, 0, sizeof(struct proc));
-    struct proc_list *node = bd_malloc(sizeof(struct  proc_list));
-    memset(node, 0, sizeof(struct proc_list));
-    node->p = p;
-    if (nextpid == 1) {
-        root_node = node;
-        root_node->next = 0;
-    } else {
-        node->next = 0;
-        push_plist(root_node,node);
-    }
-//    return 0;
-
-
-//    p->kstack = kalloc();
-    initlock(&p->lock, "proc");
-    acquire(&p->lock);
-    p->pid = allocpid();
-    char *pa = bd_malloc(PGSIZE);
-    if(pa == 0)
-        panic("kalloc");
-    acquire(&alloc_lock);
-    uint64 va = KSTACK(proc_num);
-    proc_num++;
-//    printf("proc num %d\n",proc_num);
-    release(&alloc_lock);
-//    uint64 va = KSTACK(p->pid);
-    kvmmap(kernelPage, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
-    p->kstack = pa;
+    create_proc_node(p);
     goto gen;
 
     found:
     p->state = USED;
     p->pid = allocpid();
+
     gen:
+    acquire(&p->lock);
     // Allocate a trapframe page.
     if((p->trapframe = (struct trapframe *)kalloc()) == 0){
         freeproc(p);
         release(&p->lock);
-//        release(&alloc_lock);
         return 0;
     }
 
@@ -184,7 +170,6 @@ allocproc(void)
     if(p->pagetable == 0){
         freeproc(p);
         release(&p->lock);
-//        release(&alloc_lock);
         return 0;
     }
 
@@ -193,7 +178,6 @@ allocproc(void)
     memset(&p->context, 0, sizeof(p->context));
     p->context.ra = (uint64)forkret;
     p->context.sp = p->kstack + PGSIZE;
-//    release(&alloc_lock);
     return p;
 }
 
@@ -217,6 +201,7 @@ freeproc(struct proc *p)
     p->killed = 0;
     p->xstate = 0;
     p->state = UNUSED;
+    //todo осилить удаление
 //    delete_plist_e(root_node,p);
 //    if (to_del != 0) {
 //        bd_free(p->kstack);
@@ -396,12 +381,7 @@ reparent(struct proc *p)
         }
         node = node->next;
     }
-//    for(pp = proc; pp < &proc[NPROC]; pp++){
-//        if(pp->parent == p){
-//            pp->parent = initproc;
-//            wakeup(initproc);
-//        }
-//    }
+
 }
 
 // Exit the current process.  Does not return.
@@ -489,29 +469,6 @@ wait(uint64 addr)
             node = node->next;
         }
 
-//        for(pp = proc; pp < &proc[NPROC]; pp++){
-//            if(pp->parent == p){
-//                // make sure the child isn't still in exit() or swtch().
-//                acquire(&pp->lock);
-//
-//                havekids = 1;
-//                if(pp->state == ZOMBIE){
-//                    // Found one.
-//                    pid = pp->pid;
-//                    if(addr != 0 && copyout(p->pagetable, addr, (char *)&pp->xstate,
-//                                            sizeof(pp->xstate)) < 0) {
-//                        release(&pp->lock);
-//                        release(&wait_lock);
-//                        return -1;
-//                    }
-//                    freeproc(pp);
-//                    release(&pp->lock);
-//                    release(&wait_lock);
-//                    return pid;
-//                }
-//                release(&pp->lock);
-//            }
-//        }
 
         // No point waiting if we don't have any children.
         if(!havekids || killed(p)){
@@ -564,23 +521,6 @@ scheduler(void)
             node = node->next;
         }
 
-//        for(p = proc; p < &proc[NPROC]; p++) {
-//
-//            acquire(&p->lock);
-//            if(p->state == RUNNABLE) {
-//                // Switch to chosen process.  It is the process's job
-//                // to release its lock and then reacquire it
-//                // before jumping back to us.
-//                p->state = RUNNING;
-//                c->proc = p;
-//                swtch(&c->context, &p->context);
-//
-//                // Process is done running for now.
-//                // It should have changed its p->state before coming back.
-//                c->proc = 0;
-//            }
-//            release(&p->lock);
-//        }
     }
 }
 
@@ -695,15 +635,7 @@ wakeup(void *chan)
         node = node->next;
     }
 
-//    for(p = proc; p < &proc[NPROC]; p++) {
-//        if(p != myproc()){
-//            acquire(&p->lock);
-//            if(p->state == SLEEPING && p->chan == chan) {
-//                p->state = RUNNABLE;
-//            }
-//            release(&p->lock);
-//        }
-//    }
+
 }
 
 // Kill the process with the given pid.
@@ -732,19 +664,6 @@ kill(int pid)
     }
     return -1;
 
-//    for(p = proc; p < &proc[NPROC]; p++){
-//        acquire(&p->lock);
-//        if(p->pid == pid){
-//            p->killed = 1;
-//            if(p->state == SLEEPING){
-//                // Wake process from sleep().
-//                p->state = RUNNABLE;
-//            }
-//            release(&p->lock);
-//            return 0;
-//        }
-//        release(&p->lock);
-//    }
 }
 
 void
@@ -814,16 +733,7 @@ procdump(void)
     char *state;
 
     printf("\n");
-//    for(p = proc; p < &proc[NPROC]; p++){
-//        if(p->state == UNUSED)
-//            continue;
-//        if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
-//            state = states[p->state];
-//        else
-//            state = "???";
-//        printf("%d %s %s", p->pid, state, p->name);
-//        printf("\n");
-//    }
+
 }
 
 int
@@ -839,47 +749,6 @@ dump(void) {
 
 int
 dump2(int pid, int register_num, uint64 *return_value) {
-
-    if (register_num < 2 || register_num > 11) {
-        return -3;
-    }
-
-    struct proc *my_p = myproc();
-    struct proc *p = 0;
-    int found = 0;
-    acquire(&wait_lock);
-
-//    for (int i = 0; i < NPROC; ++i) {
-//        p = &proc[i];
-//        acquire(&p->lock);
-//        found = (p->pid == pid);
-//        if (found) {
-//            break;
-//        } else {
-//            release(&p->lock);
-//        }
-//    }
-
-    if (!found) {
-        release(&wait_lock);
-        return -2;
-    }
-    if (pid != my_p->pid && p->parent != my_p) {
-        release(&p->lock);
-        release(&wait_lock);
-        return -1;
-    }
-
-    uint64 reg = *(&p->trapframe->s2 + register_num - 2);
-    release(&p->lock);
-
-    if (copyout(my_p->pagetable, (uint64)return_value, (char*)&reg, 8) == 0) {
-        release(&wait_lock);
-        return 0;
-    } else {
-        release(&wait_lock);
-        return -4;
-    };
 
 
 }
