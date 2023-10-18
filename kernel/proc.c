@@ -150,6 +150,7 @@ allocproc(void)
     p = bd_malloc(sizeof(struct proc));
     memset(p, 0, sizeof(struct proc));
     create_proc_node(p);
+    acquire(&p->lock);
     goto gen;
 
     found:
@@ -157,7 +158,6 @@ allocproc(void)
     p->pid = allocpid();
 
     gen:
-    acquire(&p->lock);
     // Allocate a trapframe page.
     if((p->trapframe = (struct trapframe *)kalloc()) == 0){
         freeproc(p);
