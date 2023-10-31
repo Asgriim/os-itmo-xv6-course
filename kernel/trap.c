@@ -9,6 +9,11 @@
 struct spinlock tickslock;
 uint ticks;
 
+enum PAGE_FAULT{
+    LOAD = 13,
+    AMO  = 15
+};
+
 extern char trampoline[], uservec[], userret[];
 
 // in kernelvec.S, calls kerneltrap().
