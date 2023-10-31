@@ -289,8 +289,8 @@ uvmcopy_UB(pagetable_t old, pagetable_t new, uint64 sz) {
             panic("uvmcopy: page not present");
         pa = PTE2PA(*pte);
         flags = PTE_FLAGS(*pte) ;
-        uint64 un_W = 0xffffffffffffffff ^(PTE_W) ;
-        flags &= un_W;
+        flags &= ~PTE_W;
+        flags |= PTE_RSW;
 //        if ((mem = kalloc()) == 0)
 //            goto err;
 //        memmove(mem, (char *) pa, PGSIZE);
@@ -322,16 +322,16 @@ fork(void)
   }
 
   // Copy user memory from parent to child.
-//  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
-//    freeproc(np);
-//    release(&np->lock);
-//    return -1;
-//  }
-  if(uvmcopy_UB(p->pagetable, np->pagetable, p->sz) < 0){
+  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
     release(&np->lock);
     return -1;
   }
+//  if(uvmcopy_UB(p->pagetable, np->pagetable, p->sz) < 0){
+//    freeproc(np);
+//    release(&np->lock);
+//    return -1;
+//  }
   np->sz = p->sz;
 
   // copy saved user registers.

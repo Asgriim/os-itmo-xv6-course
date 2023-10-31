@@ -13,6 +13,10 @@ void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
+struct {
+    int refs[PHYSTOP / PGSIZE];
+    struct spinlock ref_lock;
+} ref_table;
 
 struct run {
   struct run *next;
@@ -23,10 +27,35 @@ struct {
   struct run *freelist;
 } kmem;
 
+void add_ref(uint64 pa){
+    ref_table.refs[pa / PGSIZE]++;
+}
+
+void dec_ref(uint64 pa) {
+    ref_table.refs[pa / PGSIZE]--;
+}
+
+int get_ref_count(uint64 pa){
+    return ref_table.refs[pa / PGSIZE];
+}
+
+void set_ref_val(uint64 pa, int val) {
+    ref_table.refs[pa / PGSIZE] = val;
+}
+
+void hold_ref_lock() {
+    acquire(&ref_table.ref_lock);
+}
+
+void release_ref_lock() {
+    release(&ref_table.ref_lock);
+}
+
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  initlock(&ref_table.ref_lock,"ref lock");
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -51,6 +80,13 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  acquire(&ref_table.ref_lock);
+  dec_ref((uint64)pa);
+  if (get_ref_count(pa) > 0) {
+      release(&ref_table.ref_lock);
+      return;
+  }
+  release(&ref_table.ref_lock);
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
@@ -73,7 +109,12 @@ kalloc(void)
   acquire(&kmem.lock);
   r = kmem.freelist;
   if(r)
-    kmem.freelist = r->next;
+  {
+      acquire(&ref_table.ref_lock);
+      kmem.freelist = r->next;
+      set_ref_val((uint64)r, 1);
+      release(&ref_table.ref_lock);
+  }
   release(&kmem.lock);
 
   if(r)
