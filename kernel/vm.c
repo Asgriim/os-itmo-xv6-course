@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -351,23 +353,45 @@ uvmclear(pagetable_t pagetable, uint64 va)
 int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
-  uint64 n, va0, pa0;
+    uint64 n, va0, pa0;
 
-  while(len > 0){
-    va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (dstva - va0);
-    if(n > len)
-      n = len;
-    memmove((void *)(pa0 + (dstva - va0)), src, n);
+    while(len > 0){
+        va0 = PGROUNDDOWN(dstva);
+        pa0 = walkaddr(pagetable, va0);
+        if(pa0 == 0)
+            return -1;
 
-    len -= n;
-    src += n;
-    dstva = va0 + PGSIZE;
-  }
-  return 0;
+        struct proc *p = myproc();
+        pte_t *pte = walk(pagetable, va0, 0);
+        if (*pte == 0)
+            p->killed = 1;
+        // check
+        if ((va0 < p->sz) && (*pte & PTE_V) && (*pte & PTE_RSW))
+        {
+            char *mem;
+            if ((mem = kalloc()) == 0) {
+                // kill the proces
+                setkilled(p);
+            }else {
+                memmove(mem, (char*)pa0, PGSIZE);
+                uint flags = PTE_FLAGS(*pte);
+                uvmunmap(pagetable, va0, 1, 1);
+                *pte = (PA2PTE(mem) | flags | PTE_W);
+                *pte &= ~PTE_RSW;
+                pa0 = (uint64)mem;
+            }
+        }
+
+        n = PGSIZE - (dstva - va0);
+        if(n > len)
+            n = len;
+        memmove((void *)(pa0 + (dstva - va0)), src, n);
+
+        len -= n;
+        src += n;
+        dstva = va0 + PGSIZE;
+    }
+    return 0;
 }
 
 // Copy from user to kernel.
@@ -469,4 +493,23 @@ void vmprint(pagetable_t pagetable)
 {
     printf("page table %p\n", pagetable);
     vmprint_helper(pagetable, get_prefix(2), 2);
+}
+
+
+int valid_va(struct proc *p, uint64 va) {
+    int res = 0;
+    acquire(&p->lock);
+//    res = (p->sz <= va || va < PGROUNDDOWN(p->trapframe->sp));
+//    res = (p->sz <= va || va < PGROUNDUP(p->trapframe->sp));
+    if (p->sz <= va) {
+        res = -1;
+        goto end;
+    }
+    if (va < PGROUNDDOWN(p->trapframe->sp) / 4) {
+
+        res = -2;
+    }
+    end:
+    release(&p->lock);
+    return res;
 }

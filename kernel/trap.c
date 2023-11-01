@@ -10,8 +10,8 @@ struct spinlock tickslock;
 uint ticks;
 
 enum PAGE_FAULT{
-    LOAD = 13,
-    AMO  = 15
+    LOAD_PAGE_FAULT = 13,
+    AMO_PAGE_FAULT  = 15
 };
 
 extern char trampoline[], uservec[], userret[];
@@ -73,19 +73,67 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    setkilled(p);
+      if (r_scause() == LOAD_PAGE_FAULT || r_scause() == AMO_PAGE_FAULT) {
+            uint64 va = r_stval();
+            uint64 page_addr = PGROUNDDOWN(va);
+            if (valid_va(p,va) != 0) {
+                goto bad_end;
+            }
+//            if (p->sz <= va) {
+//                 goto bad_end;
+//             }
+            pte_t *pte;
+            uint64 pa;
+            pte = walk(p->pagetable,page_addr,0);
+            if (pte == 0 || ((*pte & PTE_V) == 0)) {
+                //todo перенаправить на lazy alloc
+                goto bad_end;
+            }
+            pa = PTE2PA(*pte);
+            uint flags = PTE_FLAGS(*pte);
+            if ((flags & PTE_RSW) && (flags & PTE_V) && (flags & PTE_U)) {
+              if (get_ref_count(pa) == 1) {
+                  *pte &= ~PTE_RSW;
+                  *pte |= PTE_W;
+                  goto ok;
+              }
+              char *mem = kalloc();
+              if (mem == 0) {
+                  goto bad_end;
+              }
+              memmove(mem, (char*)pa, PGSIZE);
+              uvmunmap(p->pagetable,page_addr,1,1);
+//              kfree(pa);
+
+              flags &= ~PTE_RSW;
+              flags |= PTE_W;
+
+              if(mappages(p->pagetable, page_addr, PGSIZE, (uint64)mem, flags) != 0){
+                  kfree(mem);
+                  goto bad_end;
+              }
+              *pte &= flags;
+              *pte |= PA2PTE(mem);
+              goto ok;
+          }
+
+      }
+
+    bad_end:
+        printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        setkilled(p);
   }
 
   if(killed(p))
     exit(-1);
 
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+  ok:
+      // give up the CPU if this is a timer interrupt.
+      if(which_dev == 2)
+        yield();
 
-  usertrapret();
+      usertrapret();
 }
 
 //

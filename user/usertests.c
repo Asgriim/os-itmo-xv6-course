@@ -2432,6 +2432,7 @@ textwrite(char *s)
   if(pid == 0) {
     volatile int *addr = (int *) 0;
     *addr = 10;
+    printf("no page fault");
     exit(1);
   } else if(pid < 0){
     printf("%s: fork failed\n", s);
