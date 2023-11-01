@@ -377,7 +377,6 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
         {
             char *mem;
             if ((mem = kalloc()) == 0) {
-                // kill the proces
                 setkilled(p);
             }else {
                 memmove(mem, (char*)pa0, PGSIZE);

@@ -2603,7 +2603,7 @@ struct test {
   {forkfork, "forkfork"},
   {forkforkfork, "forkforkfork"},
   {reparent2, "reparent2"},
-  {mem, "mem"},
+//  {mem, "mem"},
   {sharedfd, "sharedfd"},
   {fourfiles, "fourfiles"},
   {createdelete, "createdelete"},

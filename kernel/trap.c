@@ -34,6 +34,24 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+int lazy(struct proc *p, uint64 va){
+    void *ph_addr = kalloc();
+
+    if (ph_addr == 0) {
+        printf("kek 4\n");
+        return -1;
+    }
+    memset(ph_addr, 0, PGSIZE);
+    int perm = PTE_W | PTE_R | PTE_U ;
+
+    if (mappages(p->pagetable, va, PGSIZE, ph_addr, perm) != 0){
+        kfree(ph_addr);
+        printf("kek 2\n");
+        return -2;
+    }
+    return 0;
+}
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -93,11 +111,11 @@ usertrap(void)
             pa = PTE2PA(*pte);
             uint flags = PTE_FLAGS(*pte);
             if ((flags & PTE_RSW) && (flags & PTE_V) && (flags & PTE_U)) {
-              if (get_ref_count(pa) == 1) {
-                  *pte &= ~PTE_RSW;
-                  *pte |= PTE_W;
-                  goto ok;
-              }
+//              if (get_ref_count(pa) == 1) {
+//                  *pte &= ~PTE_RSW;
+//                  *pte |= PTE_W;
+//                  goto ok;
+//              }
               char *mem = kalloc();
               if (mem == 0) {
                   goto bad_end;
@@ -120,21 +138,11 @@ usertrap(void)
           }
           lazy_alloc:
 
-          void *ph_addr = kalloc();
-
-          if (ph_addr == 0) {
-              printf("kek 4\n");
+          if (lazy(p,page_addr) < 0) {
               goto bad_end;
+          } else {
+              goto ok;
           }
-          memset(ph_addr, 0, PGSIZE);
-          int perm = PTE_W | PTE_R | PTE_U | PTE_V;
-
-          if (mappages(p->pagetable, page_addr, PGSIZE, ph_addr, perm) != 0){
-              kfree(ph_addr);
-              printf("kek 2\n");
-              goto bad_end;
-          }
-          goto ok;
       }
 
 
