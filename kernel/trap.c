@@ -77,6 +77,7 @@ usertrap(void)
             uint64 va = r_stval();
             uint64 page_addr = PGROUNDDOWN(va);
             if (valid_va(p,va) != 0) {
+                printf("p size = %p",p->sz );
                 goto bad_end;
             }
 //            if (p->sz <= va) {
@@ -87,7 +88,7 @@ usertrap(void)
             pte = walk(p->pagetable,page_addr,0);
             if (pte == 0 || ((*pte & PTE_V) == 0)) {
                 //todo перенаправить на lazy alloc
-                goto bad_end;
+                goto lazy_alloc;
             }
             pa = PTE2PA(*pte);
             uint flags = PTE_FLAGS(*pte);
@@ -110,14 +111,33 @@ usertrap(void)
 
               if(mappages(p->pagetable, page_addr, PGSIZE, (uint64)mem, flags) != 0){
                   kfree(mem);
+                  printf("kek 1\n");
                   goto bad_end;
               }
               *pte &= flags;
               *pte |= PA2PTE(mem);
               goto ok;
           }
+          lazy_alloc:
 
+          void *ph_addr = kalloc();
+
+          if (ph_addr == 0) {
+              printf("kek 4\n");
+              goto bad_end;
+          }
+          memset(ph_addr, 0, PGSIZE);
+          int perm = PTE_W | PTE_R | PTE_U | PTE_V;
+
+          if (mappages(p->pagetable, page_addr, PGSIZE, ph_addr, perm) != 0){
+              kfree(ph_addr);
+              printf("kek 2\n");
+              goto bad_end;
+          }
+          goto ok;
       }
+
+
 
     bad_end:
         printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
