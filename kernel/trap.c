@@ -34,7 +34,7 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
-int lazy(struct proc *p, uint64 va){
+int lazy(pagetable_t pagetable, uint64 va){
     void *ph_addr = kalloc();
 
     if (ph_addr == 0) {
@@ -44,7 +44,7 @@ int lazy(struct proc *p, uint64 va){
     memset(ph_addr, 0, PGSIZE);
     int perm = PTE_W | PTE_R | PTE_U ;
 
-    if (mappages(p->pagetable, va, PGSIZE, ph_addr, perm) != 0){
+    if (mappages(pagetable, va, PGSIZE, ph_addr, perm) != 0){
         kfree(ph_addr);
         printf("kek 2\n");
         return -2;
@@ -138,7 +138,7 @@ usertrap(void)
           }
           lazy_alloc:
 
-          if (lazy(p,page_addr) < 0) {
+          if (lazy(p->pagetable,page_addr) < 0) {
               goto bad_end;
           } else {
               goto ok;

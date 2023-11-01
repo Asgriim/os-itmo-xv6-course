@@ -153,7 +153,7 @@ void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
 void            usertrapret(void);
-
+int             lazy(pagetable_t pagetable, uint64 va);
 // uart.c
 void            uartinit(void);
 void            uartintr(void);

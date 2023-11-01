@@ -283,12 +283,26 @@ uvmcopy_UB(pagetable_t old, pagetable_t new, uint64 sz) {
     char *mem;
 
     for (i = 0; i < sz; i += PGSIZE) {
-        if ((pte = walk(old, i, 0)) == 0)
-            continue;
-//            panic("uvmcopy: pte should exist");
-        if ((*pte & PTE_V) == 0)
-            continue;
-//            panic("uvmcopy: page not present");
+        start:
+        if ((pte = walk(old, i, 0)) == 0){
+//            continue;
+            printf("rofl 1\n");
+            if (lazy(old,i) < 0) {
+                panic("uvmcopy: pte should exist");
+            } else {
+                goto start;
+            }
+
+        }
+        if ((*pte & PTE_V) == 0) {
+//            continue;
+            printf("rofl 2\n");
+            if (lazy(old,i) < 0) {
+                panic("uvmcopy: page not present");
+            } else {
+                goto start;
+            }
+        }
         pa = PTE2PA(*pte);
 
         //parents pages also needed to lock
