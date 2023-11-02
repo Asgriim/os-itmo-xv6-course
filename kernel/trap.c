@@ -34,7 +34,10 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
-int lazy(pagetable_t pagetable, uint64 va){
+int lazy(struct proc *p, uint64 va){
+    if (valid_va(p,va) < 0) {
+        return -1;
+    }
     void *ph_addr = kalloc();
 
     if (ph_addr == 0) {
@@ -44,7 +47,7 @@ int lazy(pagetable_t pagetable, uint64 va){
     memset(ph_addr, 0, PGSIZE);
     int perm = PTE_W | PTE_R | PTE_U ;
 
-    if (mappages(pagetable, va, PGSIZE, ph_addr, perm) != 0){
+    if (mappages(p->pagetable, va, PGSIZE, ph_addr, perm) != 0){
         kfree(ph_addr);
         printf("kek 2\n");
         return -2;
@@ -94,13 +97,13 @@ usertrap(void)
       if (r_scause() == LOAD_PAGE_FAULT || r_scause() == AMO_PAGE_FAULT) {
             uint64 va = r_stval();
             uint64 page_addr = PGROUNDDOWN(va);
-            if (valid_va(p,va) != 0) {
-                printf("p size = %p",p->sz );
-                goto bad_end;
-            }
-//            if (p->sz <= va) {
-//                 goto bad_end;
-//             }
+//            if (valid_va(p,va) != 0) {
+//                printf("p size = %p",p->sz );
+//                goto bad_end;
+//            }
+          if (p->sz <= va || va < PGROUNDDOWN(p->trapframe->sp)/ 10) {
+              goto bad_end;
+          }
             pte_t *pte;
             uint64 pa;
             pte = walk(p->pagetable,page_addr,0);
@@ -138,7 +141,7 @@ usertrap(void)
           }
           lazy_alloc:
 
-          if (lazy(p->pagetable,page_addr) < 0) {
+          if (lazy(p,page_addr) < 0) {
               goto bad_end;
           } else {
               goto ok;
@@ -152,7 +155,11 @@ usertrap(void)
         printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         setkilled(p);
   }
-
+//  if (p->pid == 3) {
+//      printf("test scause\n");
+//      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+//      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+//  }
   if(killed(p))
     exit(-1);
 

@@ -390,16 +390,18 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
         struct proc *p = myproc();
         pte_t *pte = walk(pagetable, va0, 0);
         if (*pte == 0){
-            printf("rofl 213\n");
             p->killed = 1;
 
         }
         // check
-        if ((va0 < p->sz) && (*pte & PTE_V) && (*pte & PTE_RSW))
+        if ((va0 < p->sz) && (*pte & PTE_V) && (*pte & PTE_RSW) && !(PTE_W & *pte))
         {
             char *mem;
             if ((mem = kalloc()) == 0) {
-                setkilled(p);
+//            printf("rofl 213\n");
+
+//                return -1;
+//                setkilled(p);
             }else {
                 memmove(mem, (char*)pa0, PGSIZE);
                 uint flags = PTE_FLAGS(*pte);
@@ -539,7 +541,7 @@ int valid_va(struct proc *p, uint64 va) {
         res = -1;
         goto end;
     }
-    if (va < PGROUNDDOWN(p->trapframe->sp) / 4) {
+    if (va < PGROUNDDOWN(p->trapframe->sp) ) {
 
         res = -2;
     }

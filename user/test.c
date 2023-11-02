@@ -2,6 +2,7 @@
 // Created by asgrim on 28.09.23.
 //
 #include "ulib.h"
+#include "kernel/riscv.h"
 // allocate all mem, free it, and allocate again
 void
 sbrkbasic(char *s)
@@ -38,7 +39,7 @@ sbrkbasic(char *s)
     }
 
     wait(&xstatus);
-    printf("aboba 2\n");
+    printf("hiu hiuhiuhiuhiuhiuhiuhiuhiu\n");
     if(xstatus == 1){
         printf("aboba 2\n");
         printf("%s: too much memory allocated!\n", s);
@@ -73,8 +74,36 @@ sbrkbasic(char *s)
     wait(&xstatus);
     exit(xstatus);
 }
+
+
+// check that there's an invalid page beneath
+// the user stack, to catch stack overflow.
+void
+stacktest(char *s)
+{
+    int pid;
+    int xstatus;
+
+    pid = fork();
+    if(pid == 0) {
+        char *sp = (char *) r_sp();
+        sp -= PGSIZE;
+        // the *sp should cause a trap.
+        printf("%s: stacktest: read below stack %p\n", s, *sp);
+        exit(1);
+    } else if(pid < 0){
+        printf("%s: fork failed\n", s);
+        exit(1);
+    }
+    wait(&xstatus);
+    if(xstatus == -1)  // kernel killed child?
+        exit(0);
+    else
+        exit(xstatus);
+}
 int main() {
-    sbrkbasic("mem");
+    stacktest("");
+//    sbrkbasic("mem");
     printf("ok");
     exit(0);
 }

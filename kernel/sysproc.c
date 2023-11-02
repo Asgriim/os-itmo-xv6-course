@@ -32,8 +32,6 @@ sys_wait(void)
 {
   uint64 p;
   argaddr(0, &p);
-    printf("argaddr0 = %p\n",p);
-    printf("argaddr = %p\n",&p);
   return wait(p);
 }
 

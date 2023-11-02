@@ -285,7 +285,7 @@ uvmcopy_UB(pagetable_t old, pagetable_t new, uint64 sz) {
     for (i = 0; i < sz; i += PGSIZE) {
         start:
         if ((pte = walk(old, i, 0)) == 0){
-//            continue;
+            continue;
             printf("rofl 1\n");
             if (lazy(old,i) < 0) {
                 panic("uvmcopy: pte should exist");
@@ -295,7 +295,7 @@ uvmcopy_UB(pagetable_t old, pagetable_t new, uint64 sz) {
 
         }
         if ((*pte & PTE_V) == 0) {
-//            continue;
+            continue;
             printf("rofl 2\n");
             if (lazy(old,i) < 0) {
                 panic("uvmcopy: page not present");
@@ -456,8 +456,8 @@ wait(uint64 addr)
   struct proc *pp;
   int havekids, pid;
   struct proc *p = myproc();
-    printf("wait addr = %p\n", addr);
-    printf("wait p pid = %d\n", p->pid);
+
+//    printf("wait p pid = %d\n", p->pid);
   acquire(&wait_lock);
 
   for(;;){
@@ -472,15 +472,24 @@ wait(uint64 addr)
         if(pp->state == ZOMBIE){
           // Found one.
           pid = pp->pid;
+//          if (p->pid == 3) {
+//              printf("wait addr = %p\n", addr);
+//          }
+
+
           if(addr != 0 && copyout(p->pagetable, addr, (char *)&pp->xstate,
                                   sizeof(pp->xstate)) < 0) {
             release(&pp->lock);
             release(&wait_lock);
             return -1;
           }
+
           freeproc(pp);
+//            printf("lol\n");
           release(&pp->lock);
+
           release(&wait_lock);
+//            printf("ret pid %d\n", pid);
           return pid;
         }
         release(&pp->lock);
