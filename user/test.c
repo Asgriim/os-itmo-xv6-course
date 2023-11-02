@@ -4,46 +4,77 @@
 #include "ulib.h"
 // allocate all mem, free it, and allocate again
 void
-mem(char *s)
+sbrkbasic(char *s)
 {
-    void *m1, *m2;
-    int pid;
-
-    if((pid = fork()) == 0){
-        m1 = 0;
-        printf("pk \n");
-        while((m2 = malloc(10001)) != 0){
-//            printf("pk 1\n");
-            *(char**)m2 = m1;
-            m1 = m2;
-        }
-        printf("pk \n");
-        while(m1){
-            m2 = *(char**)m1;
-            free(m1);
-            m1 = m2;
-        }
-        printf("pk \n");
-        m1 = malloc(1024*20);
-        if(m1 == 0){
-            printf("couldn't allocate mem?!!\n", s);
-            exit(1);
-        }
-        free(m1);
-        exit(0);
-    } else {
-        int xstatus;
-        wait(&xstatus);
-        if(xstatus == -1){
-            // probably page fault, so might be lazy lab,
-            // so OK.
+    enum { TOOMUCH=1024*1024*1024};
+    int i, pid, xstatus;
+    char *c, *a, *b;
+    printf("test pid = %d\n", getpid());
+    printf("xstat ad = %p\n", &xstatus);
+    // does sbrk() return the expected failure value?
+    pid = fork();
+    if(pid < 0){
+        printf("fork failed in sbrkbasic\n");
+        exit(1);
+    }
+    if(pid == 0){
+        printf("aboba\n");
+        a = sbrk(TOOMUCH);
+        printf("aboba 23\n");
+        if(a == (char*)0xffffffffffffffffL){
+            printf("hui \n");
+            // it's OK if this fails.
             exit(0);
         }
-        exit(xstatus);
+
+        for(b = a; b < a+TOOMUCH; b += 4096){
+            *b = 99;
+        }
+        printf("aboba 1\n");
+        // we should not get here! either sbrk(TOOMUCH)
+        // should have failed, or (with lazy allocation)
+        // a pagefault should have killed this process.
+        exit(1);
     }
+
+    wait(&xstatus);
+    printf("aboba 2\n");
+    if(xstatus == 1){
+        printf("aboba 2\n");
+        printf("%s: too much memory allocated!\n", s);
+        exit(1);
+    }
+
+    // can one sbrk() less than a page?
+    a = sbrk(0);
+    printf("aboba 3\n");
+    for(i = 0; i < 5000; i++){
+        b = sbrk(1);
+        if(b != a){
+            printf("%s: sbrk test failed %d %x %x\n", s, i, a, b);
+            exit(1);
+        }
+        *b = 1;
+        a = b + 1;
+    }
+    pid = fork();
+    if(pid < 0){
+        printf("%s: sbrk test fork failed\n", s);
+        exit(1);
+    }
+    c = sbrk(1);
+    c = sbrk(1);
+    if(c != a + 1){
+        printf("%s: sbrk test failed post-fork\n", s);
+        exit(1);
+    }
+    if(pid == 0)
+        exit(0);
+    wait(&xstatus);
+    exit(xstatus);
 }
 int main() {
-    mem("mem");
+    sbrkbasic("mem");
     printf("ok");
     exit(0);
 }

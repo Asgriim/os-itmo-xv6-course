@@ -32,6 +32,8 @@ sys_wait(void)
 {
   uint64 p;
   argaddr(0, &p);
+    printf("argaddr0 = %p\n",p);
+    printf("argaddr = %p\n",&p);
   return wait(p);
 }
 
@@ -46,8 +48,7 @@ sys_sbrk(void)
   if ( n > 0) {
       myproc()->sz += n;
     } else {
-      if(growproc(n) < 0)
-          return -1;
+        myproc()->sz = uvmdealloc(myproc()->pagetable, addr, addr + n);
     }
   return addr;
 }

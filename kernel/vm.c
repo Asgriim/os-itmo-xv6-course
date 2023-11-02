@@ -119,10 +119,29 @@ walkaddr(pagetable_t pagetable, uint64 va)
   pte = walk(pagetable, va, 0);
   if(pte == 0)
     return 0;
-  if((*pte & PTE_V) == 0)
+  if((*pte & PTE_V) == 0) {
+    // lazy allocation
+    struct proc* p = myproc();
+    if (va < p->sz && va >= p->trapframe->sp) {
+      uint64 newpageaddr = PGROUNDDOWN(va);
+      char* mem = kalloc();
+      if (mem == 0) {
+        return 0;
+      } else {
+        memset(mem, 0, PGSIZE);
+        if (mappages(pagetable, newpageaddr, PGSIZE, (uint64)mem, PTE_W | PTE_X | PTE_R | PTE_U) != 0) {
+          kfree(mem);
+          panic("usertrap(): map new page error");
+        }
+      }
+      pte = walk(pagetable, va, 0);
+    } else {
+      return 0;
+    }
+  }
+  if((*pte & PTE_U) == 0) {
     return 0;
-  if((*pte & PTE_U) == 0)
-    return 0;
+  }
   pa = PTE2PA(*pte);
   return pa;
 }
@@ -367,11 +386,14 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
                 return -1;
             }
         }
-
+        rev:
         struct proc *p = myproc();
         pte_t *pte = walk(pagetable, va0, 0);
-        if (*pte == 0)
+        if (*pte == 0){
+            printf("rofl 213\n");
             p->killed = 1;
+
+        }
         // check
         if ((va0 < p->sz) && (*pte & PTE_V) && (*pte & PTE_RSW))
         {

@@ -456,7 +456,8 @@ wait(uint64 addr)
   struct proc *pp;
   int havekids, pid;
   struct proc *p = myproc();
-
+    printf("wait addr = %p\n", addr);
+    printf("wait p pid = %d\n", p->pid);
   acquire(&wait_lock);
 
   for(;;){
